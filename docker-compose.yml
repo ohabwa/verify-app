@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # Backend API (Python FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/verify}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - API_KEY_HEADER=${API_KEY_HEADER:-X-API-Key}
+      - APP_NAME=${APP_NAME:-Verify API}
+      - APP_VERSION=${APP_VERSION:-0.1.0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=${API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-verify}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: verify-network
+    driver: bridge

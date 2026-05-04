@@ -1,0 +1,1 @@
+"""Verify API application package."""

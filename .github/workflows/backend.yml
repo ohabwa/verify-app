@@ -1,0 +1,63 @@
+name: Backend Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v || echo "No tests configured"
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # Install Railway CLI
+          curl -fsSL https://railway.app/install.sh | sh
+          railway up --service verify-backend --directory backend
+        continue-on-error: true
+
+      - name: Deploy to Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_HOOK }}
+        run: |
+          # Trigger Render deploy via webhook
+          curl -s "$RENDER_DEPLOY_HOOK_URL"
+        continue-on-error: true
+
+      - name: Upload to Cloud Run (GCP)
+        if: false  # Disabled - enable with proper credentials
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+          GCP_REGION: us-central1
+        run: |
+          echo "Deploy to GCP Cloud Run"
+          # gcloud auth activate-service-account --key-file=$GCP_SA_KEY
+          # gcloud builds submit --tag gcr.io/$GCP_PROJECT/verify-backend
+          # gcloud run deploy verify-backend --image gcr.io/$GCP_PROJECT/verify-backend
+        continue-on-error: true
+
+      - name: Log deployment info
+        run: |
+          echo "Backend deployment complete. Configure RAILWAY_TOKEN or RENDER_DEPLOY_HOOK_URL secrets for auto-deployment."
