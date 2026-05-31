@@ -234,6 +234,27 @@ verify-app/
 └── README.md
 ```
 
+## Quick Deploy
+
+For detailed deployment instructions, see [DEPLOY.md](DEPLOY.md).
+
+### One-Click Deploy Buttons
+
+**Railway (Backend):**
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?template=https://github.com/YOUR_USERNAME/verify-app&directory=backend)
+
+**Vercel (Frontend):**
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_USERNAME/verify-app&directory=frontend)
+
+### Required Secrets for GitHub Actions
+
+| Secret | Where to Get |
+|--------|--------------|
+| `RAILWAY_TOKEN` | Railway.app → Account |
+| `VERCEL_TOKEN` | Vercel.com → Account Tokens |
+| `VERCEL_ORG_ID` | Vercel → Team Settings |
+| `VERCEL_PROJECT_ID` | Vercel → Project Settings |
+
 ## Deployment
 
 ### Staging Deployment
@@ -256,6 +277,14 @@ verify-app/
 4. **Redis (Redis Cloud/Railway):**
    - Create Redis instance
    - Set URL in backend env
+
+### Production Deployment (Tags)
+
+```bash
+# Create a release tag for production deployment
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ### Production Checklist
 

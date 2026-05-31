@@ -6,20 +6,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: verify-api
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/verify}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
       - API_KEY_HEADER=${API_KEY_HEADER:-X-API-Key}
       - APP_NAME=${APP_NAME:-Verify API}
       - APP_VERSION=${APP_VERSION:-0.1.0}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
       interval: 30s
@@ -41,11 +43,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: verify-frontend
     ports:
       - "3000:3000"
     environment:
       - API_URL=${API_URL:-http://localhost:8000}
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
       - backend
     healthcheck:
@@ -58,6 +61,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
+    container_name: verify-postgres
     ports:
       - "5432:5432"
     environment:
@@ -68,7 +72,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -82,10 +86,12 @@ services:
   # Redis Cache
   redis:
     image: redis:7-alpine
+    container_name: verify-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

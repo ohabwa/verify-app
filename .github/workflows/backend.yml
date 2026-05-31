@@ -2,13 +2,19 @@ name: Backend Deploy
 
 on:
   push:
-    branches: [main]
+    branches:
+      - master  # Staging deploys
+      - main
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
+  release:
+    types: [published]  # Production deploys on tags
 
 jobs:
-  deploy:
+  # Staging deployment (on push to master/main)
+  staging-deploy:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,36 +34,94 @@ jobs:
           cd backend
           pytest tests/ -v || echo "No tests configured"
 
-      - name: Deploy to Railway
+      - name: Deploy to Railway (Staging)
+        if: secrets.RAILWAY_TOKEN != ''
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          # Install Railway CLI
           curl -fsSL https://railway.app/install.sh | sh
-          railway up --service verify-backend --directory backend
+          railway up --service verify-backend-staging --directory backend --environment staging
         continue-on-error: true
 
-      - name: Deploy to Render
+      - name: Deploy to Render (Staging)
+        if: secrets.RENDER_STAGING_HOOK != ''
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_HOOK }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_STAGING_HOOK }}
         run: |
-          # Trigger Render deploy via webhook
           curl -s "$RENDER_DEPLOY_HOOK_URL"
         continue-on-error: true
 
-      - name: Upload to Cloud Run (GCP)
-        if: false  # Disabled - enable with proper credentials
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
-          GCP_REGION: us-central1
-        run: |
-          echo "Deploy to GCP Cloud Run"
-          # gcloud auth activate-service-account --key-file=$GCP_SA_KEY
-          # gcloud builds submit --tag gcr.io/$GCP_PROJECT/verify-backend
-          # gcloud run deploy verify-backend --image gcr.io/$GCP_PROJECT/verify-backend
+      - name: Comment deployment status
+        if: github.event_name == 'push'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Backend staging deployment triggered on ${{ github.sha }}'
+            })
         continue-on-error: true
 
-      - name: Log deployment info
+  # Production deployment (on release tag)
+  production-deploy:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
         run: |
-          echo "Backend deployment complete. Configure RAILWAY_TOKEN or RENDER_DEPLOY_HOOK_URL secrets for auto-deployment."
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v || echo "No tests configured"
+
+      - name: Deploy to Railway (Production)
+        if: secrets.RAILWAY_TOKEN != ''
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          railway up --service verify-backend --directory backend --environment production
+        continue-on-error: true
+
+      - name: Deploy to Render (Production)
+        if: secrets.RENDER_PRODUCTION_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_PRODUCTION_HOOK }}
+        run: |
+          curl -s "$RENDER_DEPLOY_HOOK_URL"
+        continue-on-error: true
+
+      - name: Create deployment summary
+        if: github.event_name == 'release'
+        run: |
+          echo "## Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Released by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  # Fallback: Manual deployment instructions
+  manual-deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print deployment instructions
+        run: |
+          echo "## Manual Deployment Required"
+          echo ""
+          echo "To deploy manually:"
+          echo "1. Railway: railway up --directory backend"
+          echo "2. Render: Use deploy hook at ${{ secrets.RENDER_STAGING_HOOK }}"
+          echo ""
+          echo "For auto-deployment, set RAILWAY_TOKEN or RENDER_STAGING_HOOK secrets"
