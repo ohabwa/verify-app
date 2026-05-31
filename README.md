@@ -1,5 +1,7 @@
 # Verify - B2B AI Content Verification API
 
+> **🚀 Deploy Now**: Follow [LAUNCH.md](LAUNCH.md) for step-by-step deployment in 15 minutes.
+
 A high-accuracy AI content detection platform designed for enterprise B2B use cases. Verify helps content publishers, legal firms, and healthcare organizations detect AI-generated content with industry-leading low false positive rates.
 
 ## Features
@@ -234,9 +236,11 @@ verify-app/
 └── README.md
 ```
 
-## Quick Deploy
+## 🚀 Deploy Now
 
-For detailed deployment instructions, see [DEPLOY.md](DEPLOY.md).
+**New to deployment?** Start with [LAUNCH.md](LAUNCH.md) - a simple step-by-step guide that takes you through creating accounts and deploying in 15 minutes.
+
+**For detailed technical documentation**, see [DEPLOY.md](DEPLOY.md).
 
 ### One-Click Deploy Buttons
 
